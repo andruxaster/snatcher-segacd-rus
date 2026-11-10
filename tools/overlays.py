@@ -109,6 +109,8 @@ D2_SCREENS = [
 def patch_d2(d2):
     d2 = patch_title(d2)
     d2 = patch_options(d2)
+    d2 = patch_save(d2)
+    d2 = patch_gun(d2)
     for at, clear, lines in D2_SCREENS:
         s = screens.Screen(d2, at, own=OWN.get(at, 0))
         bg = int(np.bincount(s.img.flatten()).argmax())
@@ -257,13 +259,73 @@ def patch_options(d2):
         r[sh & ~core] = 8
         r[core] = 4
     # header OPTIONS: serif capitals, core 1 on the bar's colour 2
-    s.img[29, 96:166] = 2
-    s.img[39, 96:166] = 2
-    s.img[30:39, 96:166] = 3
-    c, a = serif_mask("ОПЦИИ")
-    h, w = c.shape
-    x, y = 128 - w // 2, 30
-    s.img[y:y + h, x:x + w][c] = 1
-    s.img[y:y + h, x:x + w][a] = 5
+    serif_header(s.img, 29, 96, 166, "ОПЦИИ")
     s.tile_also = []
+    return s.save()
+
+
+# --- DATA_D2: save / load file screen ---------------------------------------
+SAVE_MAP_REFS = [0x118a + 14 * k for k in range(19)]
+SAVE_HEADER = "МАТЕРИАЛЫ ДЕЛА"            # INVESTIGATION FILE
+
+
+def serif_header(img, y, x0, x1, text):
+    """Embossed header on a colour-3 band with colour-2 edges (OPTIONS,
+    INVESTIGATION FILE): rows y..y+10, letters core 1, anti-aliasing 5."""
+    img[y, x0:x1] = 2
+    img[y + 10, x0:x1] = 2
+    img[y + 1:y + 10, x0:x1] = 3
+    c, a = serif_mask(text)
+    h, w = c.shape
+    x = (x0 + x1) // 2 - w // 2
+    img[y + 1:y + 1 + h, x:x + w][c] = 1
+    img[y + 1:y + 1 + h, x:x + w][a] = 5
+
+
+def tiny(img, x, y, text, colour, right=False):
+    f = pixfont.font("4x6")
+    m = f.mask(text, 7)
+    w = f.width(text)
+    if right:
+        x -= w
+    img[y:y + 7, x:x + w + 1][m] = colour
+
+
+def patch_save(d2):
+    s = screens.Screen(d2, blocks=[(OPT_PTRS[0], 0x20), (0x117c, 0xd000)], own=1,
+                       map_refs=SAVE_MAP_REFS)
+    serif_header(s.img, 45, 56, 206, SAVE_HEADER)
+    for k in range(4):
+        dy = 32 * k
+        for y0, y1, x0, x1 in ((65, 70, 169, 182), (72, 77, 140, 172), (78, 83, 140, 172), (78, 83, 69, 88)):
+            reg = s.img[y0 + dy:y1 + dy, x0:x1]
+            reg[reg == 11] = 5
+        tiny(s.img, 169, 65 + dy, "АКТ", 11)
+        tiny(s.img, 171, 72 + dy, "ВСЕГО", 11, right=True)
+        tiny(s.img, 171, 78 + dy, "ЗАПИСЕЙ", 11, right=True)
+        tiny(s.img, 71, 78 + dy, "ВРЕМЯ", 11)
+    return s.save()
+
+
+# --- DATA_D2: gun adjust (Justifier) -----------------------------------------
+def patch_gun(d2):
+    """GUN ADJUST engraved in the stone texture -> КАЛИБРОВКА. The old letters
+    are covered with the texture from the rows below them."""
+    s = screens.Screen(d2, 0x4a4, own=2)
+    img = s.img
+    img[7:25, 40:216] = img[26:44, 40:216]
+    f = pixfont.font("10x20", gap=3)
+    m = f.mask("КАЛИБРОВКА", f.ascent + 4)
+    rows = np.nonzero(m.any(1))[0]
+    m = m[rows[0]:rows[-1] + 1]
+    h, w = m.shape
+    x, y = 128 - w // 2, 9
+    big = np.zeros((h + 2, w + 2), bool)
+    big[1:-1, 1:-1] = m
+    reg = img[y - 1:y + h + 1, x - 1:x + w + 1]
+    lo = np.zeros_like(big); lo[1:, 1:] = big[:-1, :-1]        # light edge, bottom right
+    hi = np.zeros_like(big); hi[:-1, :-1] = big[1:, 1:]        # dark edge, top left
+    reg[lo & ~big] = 7
+    reg[hi & ~big] = 1
+    reg[big] = 3
     return s.save()
