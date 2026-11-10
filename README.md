@@ -50,7 +50,7 @@
 
 ## Установка патча
 
-Готовый патч — в [релизах](https://github.com/andruxaster/snatcher-segacd-rus/releases):
+Готовый патч — [patches/Snatcher-SegaCD-RU-v0.1.zip](patches/Snatcher-SegaCD-RU-v0.1.zip):
 xdelta для первой дорожки образа redump *Snatcher (USA)*, инструкция в
 README.txt внутри архива. Остальные дорожки и .cue не меняются.
 
