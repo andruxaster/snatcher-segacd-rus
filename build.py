@@ -80,12 +80,20 @@ def cmd_build(a):
         else:
             os.symlink(os.path.join(DISCS, f), dst)
     img = Mode1Image(os.path.join(PATCHED, TRACK1))
-    img.write_file("SUBCODE.BIN", fontpatch.patch_subcode(img.read_file("SUBCODE.BIN")))
-    print("SUBCODE.BIN: Cyrillic font added")
-    if a.probe:
-        import probe_line
-        img.write_file("SP06.BIN", probe_line.patch_sp06(img.read_file("SP06.BIN")))
-        print("SP06.BIN: probe line")
+    import textpatch
+    sub = fontpatch.patch_subcode(img.read_file("SUBCODE.BIN"))
+    img.write_file("SUBCODE.BIN", textpatch.patch_subcode(sub))
+    print("SUBCODE.BIN: Cyrillic font, text remap")
+    for n in range(39):
+        name = f"SP{n:02d}.BIN"
+        sp = img.read_file(name)
+        new = {}
+        if a.probe and name == "SP06.BIN":
+            import probe_line
+            new = probe_line.LINES
+        lead = b"\xff" * 4 if a.shift_test else b""
+        img.write_file(name, textpatch.relayout(sp, new, lead))
+    print("SP00-SP38: text relaid out" + (" (shift test)" if a.shift_test else ""))
     print(f"-> {os.path.relpath(os.path.join(PATCHED, NAME + '.cue'), ROOT)}")
 
 
@@ -96,7 +104,9 @@ def main():
     p.add_argument("paths", nargs="+")
     sub.add_parser("extract")
     p = sub.add_parser("build")
-    p.add_argument("--probe", action="store_true")
+    p.add_argument("--probe", action="store_true", help="Mika's first line in Russian")
+    p.add_argument("--shift-test", action="store_true",
+                   help="move every string by 4 bytes: the game must run unchanged")
     a = ap.parse_args()
     if a.cmd == "discs":
         cmd_discs(a.paths)
