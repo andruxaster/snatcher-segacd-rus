@@ -95,6 +95,9 @@ def cmd_build(a):
             new.update(probe_line.LINES)
         lead = b"\xff" * 4 if a.shift_test else b""
         img.write_file(name, textpatch.relayout(sp, new, lead))
+    import overlays
+    img.write_file("DATA_D1.BIN", overlays.patch_d1(img.read_file("DATA_D1.BIN")))
+    print("DATA_D1.BIN: disclaimer, dedication")
     print("SP00-SP38: text relaid out" + (" (shift test)" if a.shift_test else ""))
     print(f"-> {os.path.relpath(os.path.join(PATCHED, NAME + '.cue'), ROOT)}")
 
