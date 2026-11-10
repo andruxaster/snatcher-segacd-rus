@@ -98,7 +98,7 @@ def cmd_build(a):
     import overlays
     img.write_file("DATA_D1.BIN", overlays.patch_d1(img.read_file("DATA_D1.BIN")))
     img.write_file("DATA_D2.BIN", overlays.patch_d2(img.read_file("DATA_D2.BIN")))
-    print("DATA_D1.BIN: disclaimer, dedication; DATA_D2.BIN: backup RAM screens")
+    print("DATA_D1.BIN: disclaimer, dedication; DATA_D2.BIN: title menu, backup RAM screens")
     print("SP00-SP38: text relaid out" + (" (shift test)" if a.shift_test else ""))
     print(f"-> {os.path.relpath(os.path.join(PATCHED, NAME + '.cue'), ROOT)}")
 

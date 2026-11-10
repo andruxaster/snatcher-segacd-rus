@@ -78,16 +78,18 @@ def encode(img, words):
     return t, struct.pack(">%dH" % out.size, *[int(v) for v in out.flatten()])
 
 
-def put_blocks(data, ptrs, raws):
+def put_blocks(data, ptrs, raws, also=()):
     """Append each raw block (packed) to the file and point the code-table
-    longs at file offsets `ptrs` to it. Returns the new file."""
+    longs at file offsets `ptrs` to it (and the longs in `also` to the first
+    one). Returns the new file."""
     out = bytearray(data)
-    for p, raw in zip(ptrs, raws):
+    for n, (p, raw) in enumerate(zip(ptrs, raws)):
         if len(out) & 1:
             out.append(0)
         off = len(out)
         out += pack(raw)
-        out[p:p + 4] = struct.pack(">I", LOAD + off)
+        for q in [p] + (list(also) if n == 0 else []):
+            out[q:q + 4] = struct.pack(">I", LOAD + off)
     return bytes(out)
 
 

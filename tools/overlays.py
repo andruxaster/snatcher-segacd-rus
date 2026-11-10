@@ -106,6 +106,7 @@ D2_SCREENS = [
 
 
 def patch_d2(d2):
+    d2 = patch_title(d2)
     for at, clear, lines in D2_SCREENS:
         s = screens.Screen(d2, at, own=OWN.get(at, 0))
         bg = int(np.bincount(s.img.flatten()).argmax())
@@ -115,3 +116,61 @@ def patch_d2(d2):
             text(s.img, y, segs)
         d2 = s.save()
     return d2
+
+
+# --- DATA_D2: title menu (sprites) ------------------------------------------
+# Block at VRAM 0x20: one blank tile, then 64 8x16 sprite columns holding
+# "▶ NEW GAME CONTINUE OPTION" twice (two colour sets). Each word is redrawn
+# inside its own columns; the layout stays the same.
+TITLE_PTRS = (0x28c, 0x508)
+TITLE_WORDS = [(16, 112, "НОВАЯ ИГРА"), (112, 200, "ПРОДОЛЖИТЬ"), (200, 256, "ОПЦИИ")]
+TITLE_COLOURS = [(0, 13, 14), (256, 12, 15)]          # strip x, upper, lower core colour
+
+
+def serif_mask(text, gap=1, space=6):
+    """(core, aa) masks of `text` in the dedication's serif capitals."""
+    cols_c, cols_a = [], []
+    for k, ch in enumerate(text):
+        if ch == " ":
+            cols_c.append(np.zeros((9, space), bool)); cols_a.append(np.zeros((9, space), bool))
+            continue
+        g = seriffont.G[ch]
+        cols_c.append(np.array([[p == "#" for p in r] for r in g]))
+        cols_a.append(np.array([[p == "o" for p in r] for r in g]))
+        if k < len(text) - 1 and text[k + 1] != " ":
+            cols_c.append(np.zeros((9, gap), bool)); cols_a.append(np.zeros((9, gap), bool))
+    return np.hstack(cols_c), np.hstack(cols_a)
+
+
+def sprite_word(strip, x0, x1, text, top, bot, shadow=3, y=4):
+    """Serif word in the title-menu style: light core, darker anti-aliasing,
+    a dark 1-px drop shadow (the letters are thinner than the English ones:
+    ПРОДОЛЖИТЬ has to fit where CONTINUE was)."""
+    strip[:, x0:x1] = 0
+    c, a = serif_mask(text)
+    m = c | a
+    h, w = m.shape
+    x = x0 + 1
+    assert x + w + 1 <= x1, (text, w, x1 - x0)
+    H = strip.shape[0]
+    sh = np.zeros((H + 2, w + 1), dtype=bool)
+    sh[y + 1:y + 1 + h, 1:w + 1] = m
+    reg = strip[:, x:x + w + 1]
+    reg[sh[:H]] = shadow
+    full = lambda q: np.vstack([np.zeros((y, w), bool), q, np.zeros((H - y - h, w), bool)])
+    m, a = full(m), full(a)
+    reg = strip[:, x:x + w]
+    reg[m] = top
+    reg[a] = bot
+
+
+def patch_title(d2):
+    off = screens.ptr(d2, TITLE_PTRS[0])
+    t = screens.tiles_to_array(screens.block(d2, off))
+    strip = np.hstack([np.vstack([t[i], t[i + 1]]) for i in range(1, len(t) - 1, 2)])
+    for base, top, bot in TITLE_COLOURS:
+        for x0, x1, word in TITLE_WORDS:
+            sprite_word(strip, base + x0, base + x1, word, top, bot)
+    for n, i in enumerate(range(1, len(t) - 1, 2)):
+        t[i], t[i + 1] = strip[:8, n * 8:n * 8 + 8], strip[8:, n * 8:n * 8 + 8]
+    return screens.put_blocks(d2, [TITLE_PTRS[0]], [screens.array_to_tiles(t)], also=[TITLE_PTRS[1]])
