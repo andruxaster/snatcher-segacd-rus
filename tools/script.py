@@ -100,9 +100,13 @@ def wrap(t, limit=LINE_PX):
             continue
         lines = []
         for para in part.split("\n"):
-            cur = ""
-            for w in para.split(" "):
-                cand = w if not cur else cur + " " + w
+            body = para.lstrip(" ")
+            indent = para[:len(para) - len(body)]      # a field value's indent stays
+            cur = indent
+            for w in body.split(" "):
+                cand = w if not cur.strip() else cur + " " + w
+                if not cur.strip():
+                    cand = cur + w
                 if cur and px(cand) > limit:
                     lines.append(cur)
                     cur = w
