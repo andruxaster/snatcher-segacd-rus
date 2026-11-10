@@ -81,16 +81,18 @@ def cmd_build(a):
             os.symlink(os.path.join(DISCS, f), dst)
     img = Mode1Image(os.path.join(PATCHED, TRACK1))
     import textpatch
-    sub = fontpatch.patch_subcode(img.read_file("SUBCODE.BIN"))
+    import names
+    sub = fontpatch.patch_subcode(names.patch(img.read_file("SUBCODE.BIN")))
     img.write_file("SUBCODE.BIN", textpatch.patch_subcode(sub))
-    print("SUBCODE.BIN: Cyrillic font, text remap")
+    print("SUBCODE.BIN: Cyrillic font, Russian nameplates, text remap")
     for n in range(39):
         name = f"SP{n:02d}.BIN"
         sp = img.read_file(name)
-        new = {}
+        import script
+        new = script.load_ru(name[:4])
         if a.probe and name == "SP06.BIN":
             import probe_line
-            new = probe_line.LINES
+            new.update(probe_line.LINES)
         lead = b"\xff" * 4 if a.shift_test else b""
         img.write_file(name, textpatch.relayout(sp, new, lead))
     print("SP00-SP38: text relaid out" + (" (shift test)" if a.shift_test else ""))
