@@ -4,6 +4,7 @@
     python build.py discs PATH            copy your redump BIN/CUE set into discs/
     python build.py extract               the data track's files -> work/files/
     python build.py build [--probe]       patched/Snatcher (USA).cue + tracks
+    python build.py release               build + release/Snatcher-SegaCD-RU-v<ver>.zip (xdelta)
 
 `build` copies the data track, adds the Cyrillic font (tools/fontpatch.py)
 and, with --probe, puts one Russian line in place of Mika's first one
@@ -111,12 +112,34 @@ def cmd_build(a):
     print(f"-> {os.path.relpath(os.path.join(PATCHED, NAME + '.cue'), ROOT)}")
 
 
+def cmd_release():
+    import subprocess, zipfile
+    ver = open(os.path.join(ROOT, "VERSION")).read().strip()
+    rel = os.path.join(ROOT, "release")
+    os.makedirs(rel, exist_ok=True)
+    src = os.path.join(DISCS, TRACK1)
+    out = os.path.join(PATCHED, TRACK1)
+    patch = f"Snatcher (USA) (Track 01) [T-Ru v{ver}].xdelta"
+    pp = os.path.join(rel, patch)
+    if os.path.exists(pp):
+        os.remove(pp)
+    subprocess.run(["xdelta3", "-e", "-9", "-S", "djw", "-s", src, out, pp], check=True)
+    readme = open(os.path.join(ROOT, "RELEASE_README.txt"), encoding="utf-8").read().format(
+        version=ver, src_sha1=TRACK1_SHA1, out_sha1=sha1(out), patch=patch)
+    z = os.path.join(rel, f"Snatcher-SegaCD-RU-v{ver}.zip")
+    with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as f:
+        f.write(pp, patch)
+        f.writestr("README.txt", readme.replace("\n", "\r\n"))
+    print(f"-> {os.path.relpath(z, ROOT)} ({os.path.getsize(z)} bytes)")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("discs")
     p.add_argument("paths", nargs="+")
     sub.add_parser("extract")
+    sub.add_parser("release")
     p = sub.add_parser("build")
     p.add_argument("--probe", action="store_true", help="Mika's first line in Russian")
     p.add_argument("--shift-test", action="store_true",
@@ -126,6 +149,9 @@ def main():
         cmd_discs(a.paths)
     elif a.cmd == "extract":
         cmd_extract()
+    elif a.cmd == "release":
+        cmd_build(argparse.Namespace(probe=False, shift_test=False))
+        cmd_release()
     else:
         cmd_build(a)
 

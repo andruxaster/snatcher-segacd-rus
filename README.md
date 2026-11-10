@@ -48,6 +48,12 @@
 1. Вычитка в игре: пароль Наполеона (выбор из меню), загадка Катрины,
    база Джордана.
 
+## Установка патча
+
+Готовый патч — в [релизах](https://github.com/andruxaster/snatcher-segacd-rus/releases):
+xdelta для первой дорожки образа redump *Snatcher (USA)*, инструкция в
+README.txt внутри архива. Остальные дорожки и .cue не меняются.
+
 ## Сборка
 
 Нужен свой образ *Snatcher (USA)* для Sega CD в формате redump (21 дорожка,
@@ -57,6 +63,7 @@ BIN/CUE), Python 3.10+, binutils для m68k
 ```sh
 python3 build.py discs /путь/к/образу       # копирует дорожки в discs/segacd_us/
 python3 build.py build                      # patched/Snatcher (USA).cue
+python3 build.py release                    # + release/Snatcher-SegaCD-RU-v<версия>.zip
 python3 build.py build --shift-test         # проверка переадресации: всё по-английски, текст сдвинут
 ```
 
