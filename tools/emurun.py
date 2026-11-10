@@ -270,6 +270,9 @@ def main():
             elif act.startswith("shot"):
                 emu.image().save(os.path.join(a.out, f"f{f:06d}.png"))
                 print(f"  shot at {f}")
+            elif act.startswith("state"):
+                open(os.path.join(a.out, f"s{f:06d}.state"), "wb").write(emu.state())
+                print(f"  state at {f}")
             elif act == "quit":
                 break
         emu.run()

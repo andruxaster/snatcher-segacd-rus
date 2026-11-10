@@ -99,6 +99,14 @@ def cmd_build(a):
     img.write_file("DATA_D1.BIN", overlays.patch_d1(img.read_file("DATA_D1.BIN")))
     img.write_file("DATA_D2.BIN", overlays.patch_d2(img.read_file("DATA_D2.BIN")))
     print("DATA_D1.BIN: disclaimer, dedication; DATA_D2.BIN: title menu, backup RAM screens")
+    import acttitles
+    for name in acttitles.TITLES:
+        img.write_file(name, acttitles.patch(name, img.read_file(name)))
+    print("act titles: " + ", ".join(acttitles.TITLES))
+    import captions
+    for name in captions.FILES:
+        img.write_file(name, captions.patch(name, img.read_file(name)))
+    print("city caption: " + ", ".join(captions.FILES))
     print("SP00-SP38: text relaid out" + (" (shift test)" if a.shift_test else ""))
     print(f"-> {os.path.relpath(os.path.join(PATCHED, NAME + '.cue'), ROOT)}")
 
