@@ -84,10 +84,16 @@ def put_blocks(data, ptrs, raws, also=()):
     one). Returns the new file."""
     out = bytearray(data)
     for n, (p, raw) in enumerate(zip(ptrs, raws)):
+        new = pack(raw)
+        old = ptr(out, p)
+        _, end = konamilz.decompress(bytes(out), old + 2)
+        if len(new) <= end - old:                  # fits where the old block was
+            out[old:old + len(new)] = new
+            continue
         if len(out) & 1:
             out.append(0)
         off = len(out)
-        out += pack(raw)
+        out += new
         for q in [p] + (list(also) if n == 0 else []):
             out[q:q + 4] = struct.pack(">I", LOAD + off)
     return bytes(out)
@@ -151,19 +157,25 @@ class Screen:
     tilemap). Draw on `img`, then `save()`: changed cells get new tiles,
     appended to the screen's `own` tile block; the rest stays as it was."""
 
-    def __init__(self, data, at, width=32, own=0):
+    def __init__(self, data, at=None, width=32, own=0, blocks=None, map_refs=None, map_vram=0xE000):
+        """`at`: a descriptor; or `blocks` [(pointer long offset, vram)] and
+        `map_refs` (every long that points at the tilemap)."""
         self.data, self.width = data, width
-        self.desc = descriptor(data, at)
+        if at is not None:
+            desc = descriptor(data, at)
+            blocks, map_refs = desc[:-1], [desc[-1][0]]
+            map_vram = struct.unpack(">I", data[desc[-1][0] + 4:desc[-1][0] + 8])[0]
         self.vram = Vram()
         self.blocks = []
-        for p, v in self.desc[:-1]:
+        for p, v in blocks:
             raw = block(data, ptr(data, p))
             self.vram.load(raw, v)
             self.blocks.append((p, v, raw))
-        self.map_ptr = self.desc[-1][0]
+        self.map_ptr, self.map_also, self._map_vram = map_refs[0], map_refs[1:], map_vram
         self.img, self.pal, self.words = self.vram.draw(block(data, ptr(data, self.map_ptr)), width)
         self.orig = self.img.copy()
         self.own = own                                   # index into blocks
+        self.tile_also = []                              # other longs pointing at the own block
 
     def limit(self):
         p, v, raw = self.blocks[self.own]
@@ -171,7 +183,7 @@ class Screen:
         return (min(e for e in ends if e > v) - v) // 32
 
     def map_vram(self):
-        return struct.unpack(">I", self.data[self.desc[-1][0] + 4:self.desc[-1][0] + 8])[0]
+        return self._map_vram
 
     def save(self):
         """New map + own tiles. Own tiles that only the redrawn cells used are
@@ -210,4 +222,5 @@ class Screen:
                 words[y, x] = (int(words[y, x]) & 0xE000) | (base + index[k])
         assert len(tiles) <= self.limit(), (len(tiles), self.limit())
         tmap = struct.pack(">%dH" % words.size, *[int(t) for t in words.flatten()])
-        return put_blocks(self.data, [p, self.map_ptr], [array_to_tiles(np.array(tiles)), tmap])
+        out = put_blocks(self.data, [p], [array_to_tiles(np.array(tiles))], also=self.tile_also)
+        return put_blocks(out, [self.map_ptr], [tmap], also=self.map_also)
