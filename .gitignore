@@ -1,0 +1,13 @@
+# your own disc dumps and everything made from them - never committed
+discs/
+work/
+patched/
+release/
+bios/
+*.bin
+*.cue
+*.iso
+*.png
+!docs/*.png
+local_paths.json
+__pycache__/
