@@ -142,3 +142,70 @@ class Vram:
                 img[y * 8:y * 8 + 8, x * 8:x * 8 + 8] = g
                 pal[y * 8:y * 8 + 8, x * 8:x * 8 + 8] = (v >> 13) & 3
         return img, pal, words
+
+
+class Screen:
+    """A full screen of a DATA file described by a descriptor (tiles blocks +
+    tilemap). Draw on `img`, then `save()`: changed cells get new tiles,
+    appended to the screen's `own` tile block; the rest stays as it was."""
+
+    def __init__(self, data, at, width=32, own=0):
+        self.data, self.width = data, width
+        self.desc = descriptor(data, at)
+        self.vram = Vram()
+        self.blocks = []
+        for p, v in self.desc[:-1]:
+            raw = block(data, ptr(data, p))
+            self.vram.load(raw, v)
+            self.blocks.append((p, v, raw))
+        self.map_ptr = self.desc[-1][0]
+        self.img, self.pal, self.words = self.vram.draw(block(data, ptr(data, self.map_ptr)), width)
+        self.orig = self.img.copy()
+        self.own = own                                   # index into blocks
+
+    def limit(self):
+        p, v, raw = self.blocks[self.own]
+        ends = [vv for _, vv, _ in self.blocks if vv > v] + [0xE000, 0xC000 if self.map_vram() == 0xC000 else 0xE000]
+        return (min(e for e in ends if e > v) - v) // 32
+
+    def map_vram(self):
+        return struct.unpack(">I", self.data[self.desc[-1][0] + 4:self.desc[-1][0] + 8])[0]
+
+    def save(self):
+        """New map + own tiles. Own tiles that only the redrawn cells used are
+        recycled (they held the old text); new tiles go there first, then at
+        the end of the block."""
+        p, v, raw = self.blocks[self.own]
+        tiles = list(tiles_to_array(raw))
+        base = v // 32
+        h, w = self.words.shape
+        changed = np.zeros((h, w), dtype=bool)
+        for y in range(h):
+            for x in range(w):
+                changed[y, x] = not np.array_equal(self.img[y * 8:y * 8 + 8, x * 8:x * 8 + 8],
+                                                   self.orig[y * 8:y * 8 + 8, x * 8:x * 8 + 8])
+        own = lambda t: base <= t < base + len(tiles)
+        keep = {int(t) & 0x7FF for t in self.words[~changed].flatten()}
+        free = sorted({int(t) & 0x7FF for t in self.words[changed].flatten()
+                       if own(int(t) & 0x7FF)} - keep)
+        free = [t - base for t in free]
+        index = {tiles[t - base].tobytes(): t - base for t in sorted(keep) if own(t)}
+        words = self.words.copy()
+        for y in range(h):
+            for x in range(w):
+                if not changed[y, x]:
+                    continue
+                cell = self.img[y * 8:y * 8 + 8, x * 8:x * 8 + 8]
+                k = cell.tobytes()
+                if k not in index:
+                    if free:
+                        i = free.pop(0)
+                        tiles[i] = cell.copy()
+                    else:
+                        i = len(tiles)
+                        tiles.append(cell.copy())
+                    index[k] = i
+                words[y, x] = (int(words[y, x]) & 0xE000) | (base + index[k])
+        assert len(tiles) <= self.limit(), (len(tiles), self.limit())
+        tmap = struct.pack(">%dH" % words.size, *[int(t) for t in words.flatten()])
+        return put_blocks(self.data, [p, self.map_ptr], [array_to_tiles(np.array(tiles)), tmap])
