@@ -245,6 +245,7 @@ def main():
     ap.add_argument("--core", default=CORE)
     ap.add_argument("--card", help="memory card to insert (raw 128K)")
     ap.add_argument("--card-out", help="write the card back here at the end")
+    ap.add_argument("--wav", help="record the sound output (s16 stereo 44.1 kHz) here")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     events = {}
@@ -261,6 +262,8 @@ def main():
         emu.load_card(a.card)
         print(f"card in: {a.card}")
     print(f"loaded {a.image}, pixel format {emu.fmt}")
+    if a.wav:
+        emu.audio_sink = bytearray()
     for f in range(a.frames):
         for act in events.get(f, []):
             if act.startswith("press:"):
@@ -280,6 +283,12 @@ def main():
             emu.image().save(os.path.join(a.out, f"f{f:06d}.png"))
     if emu.frame:
         emu.image().save(os.path.join(a.out, "final.png"))
+    if a.wav:
+        import wave
+        w = wave.open(a.wav, "wb")
+        w.setnchannels(2); w.setsampwidth(2); w.setframerate(44100)
+        w.writeframes(bytes(emu.audio_sink)); w.close()
+        print(f"sound: {a.wav}, {len(emu.audio_sink) // 4 / 44100:.1f} s")
     if a.card_out:
         emu.save_card(a.card_out)
         print(f"card out: {a.card_out}")

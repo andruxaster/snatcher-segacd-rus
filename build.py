@@ -97,7 +97,10 @@ def cmd_build(a):
         lead = b"\xff" * 4 if a.shift_test else b""
         img.write_file(name, textpatch.relayout(sp, new, lead))
     import overlays
-    img.write_file("DATA_D1.BIN", overlays.patch_d1(img.read_file("DATA_D1.BIN")))
+    import introsubs
+    d1, n = introsubs.patch(overlays.patch_d1(img.read_file("DATA_D1.BIN")))
+    img.write_file("DATA_D1.BIN", d1)
+    print(f"DATA_D1.BIN: intro subtitles, player + data {n} bytes")
     img.write_file("DATA_D2.BIN", overlays.patch_d2(img.read_file("DATA_D2.BIN")))
     print("DATA_D1.BIN: disclaimer, dedication; DATA_D2.BIN: title menu, backup RAM screens")
     import acttitles
